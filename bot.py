@@ -41,3 +41,4 @@ class Bot:
             time = np.sqrt((x-loc[0])**2 + (y-loc[1])**2) / 200
         pg.moveTo(loc[0] + self.winInf[0], loc[1] +
                   self.winInf[1], time, pg.easeOutElastic)
+        pg.click()

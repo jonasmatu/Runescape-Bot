@@ -1,14 +1,23 @@
 import os
 import time
 import numpy as np
+import windowTools as wt
 from bot import Bot
+import _thread
 
 
 class Miner(Bot):
     """Detect and click on Mines """
 
-    def __init__(self, windowInfo):
+    def __init__(self, windowInfo, x_off, y_off):
         print("Initialize Miner!")
+        self.mining = False
+        self.mines = list()
+        self.nearest_ore = (0, 0)
+        self.player_pos = (285, 180)  # absolute coordinates (x, y)
+        self.init_mining = False
+        self.x_offset = x_off
+        self.y_offset = y_off
         Bot.__init__(self, windowInfo)
 
     def detect_iron(self, ar_image):
@@ -23,14 +32,8 @@ class Miner(Bot):
         coords_dark = np.flip(np.argwhere(
             np.all((ar_image-iron_color_dark) == 0, axis=2)), axis=1)
         spots = np.concatenate((coords_dark, coords_light))
-        centers = self.calc_center(spots)
-        return centers
-
-    # def click_basic(self, loc):
-    #     Bot.click_basic(loc)
-
-    # def click(self, loc, time=-1, radius=0):
-    #     Bot.click(loc, time, radius)
+        self.mines = self.calc_center(spots)
+        return self.mines
 
     def calc_center(self, spots):
         """Calculate center of iron ores by collecting all marked pixels
@@ -72,26 +75,40 @@ class Miner(Bot):
             spots = spots2
         return centers
 
-    def get_nearest_ore(self, centers, player):
+    def get_nearest_ore(self, centers):
         """Calculate the nearest ore to player position.
         Args:
             centers (list): the ore centers.
-            player (tuple): x,y position of player.
         Returns:
             tuple: nearest ore location."""
         distance = 10000
-        location = player
+        location = self.player_pos
         for loc in centers:
-            dist = np.sqrt((player[0]-loc[0])**2 + (player[1]-loc[1])**2)
+            dist = np.sqrt(
+                (self.player_pos[0]-loc[0])**2 + (self.player_pos[1]-loc[1])**2)
             if dist < distance:
                 distance = dist
                 location = (loc[0], loc[1])
         return location
 
-    def mine_at_ore(self, ore):
+    def mine_at_ore(self):
         """Continuous mining at a ore.
         Args:
-            ore (tuple): x,y pos of ore.
+            None
         Return:
             None.
         """
+        if not self.mining:
+            self.nearest_ore = self.get_nearest_ore(self.mines)
+            print(self.nearest_ore)
+            self.mining = True
+        else:
+            x, y = self.nearest_ore
+            im_ar = wt.get_array((x-15, y-15, x+15, y+15))
+            if len(self.detect_iron(im_ar)) != 0 and not self.init_mining:
+                loc = (self.nearest_ore[0]+29,
+                       self.nearest_ore[1])
+                _thread.start_new_thread(self.click, (loc, 1, 5,))
+                self.init_mining = True
+            elif len(self.detect_iron(im_ar)) == 0:
+                self.init_mining = False

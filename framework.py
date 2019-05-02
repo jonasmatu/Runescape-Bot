@@ -18,13 +18,13 @@ class Window:
         self.raw_im = Image.open("Images/train.png")
         self.ar_im = np.array([])
         self.time = 0
-
-        self.miner = Miner(self.win_info)
+        self.init_mining = False
 
         self.x_offset = 20  # image offset in canvas
         self.y_offset = 20
+        self.miner = Miner(self.win_info, self.x_offset, self.y_offset)
         self.player_pos = (285, 180)  # absolute coordinates (x, y)
-
+        self.nearest_ore = self.player_pos
         # image and buttons
         self.canvas = tk.Canvas(master, width=900, height=800)
         self.canvas.pack()
@@ -33,9 +33,9 @@ class Window:
             master, text='Update', command=self.update)
         self.button_update.pack()
 
-        self.button_click = tk.Button(
-            master, text='Click', command=self.test_thread)
-        self.button_click.pack()
+        self.button_mine = tk.Button(
+            master, text='Mine', command=self.toggle_mining)
+        self.button_mine.pack()
 
         self.button_savepic = tk.Button(
             master, text='Save', command=lambda: self.raw_im.save('Images/im.png'))
@@ -56,6 +56,13 @@ class Window:
 
         self.locator = Locator()
 
+    def toggle_mining(self):
+        self.init_mining = not self.init_mining
+        if self.init_mining:
+            print("Toggled mining on!")
+        else:
+            print("Toggled mining off!")
+
     def mark_iron_ores(self, ar_game_field):
         """Find iron ores in game_field with the miner Class and mark them"""
         iron_ores = self.miner.detect_iron(ar_game_field[:, :, :3])
@@ -66,8 +73,8 @@ class Window:
 
     def update(self):
         """Update"""
-        print("FPS:", 1/(time.time()-self.time))
-        self.time = time.time()
+        #print("FPS:", 1/(time.time()-self.time))
+        #self.time = time.time()
         self.raw_im = wt.get_full_screen()
         self.ar_gamefield = wt.crop_to_array(self.raw_im, self.gamefield)
         self.street, self.fence = self.locator.get_minimap(
@@ -94,6 +101,9 @@ class Window:
                 x+595 + 20, y+9 + 20, x+1+595+20, y+1+9+20, outline='pink')
         self.canvas.update()
 
+        if self.init_mining:
+            self.miner.mine_at_ore()
+
     def run(self):
         while running:
             self.update()
@@ -115,6 +125,7 @@ def close(*ignore):
 root = tk.Tk()
 window = Window(root)
 root.bind('<Escape>', close)
+root.bind('<M>', window.toggle_mining)
 root.protocol("WM_DELETE_WINDOW", close)
 root.after(500, window.run)
 root.mainloop()
