@@ -1,59 +1,7 @@
-import pyscreenshot as ImageGrab
 import os
 import time
 import numpy as np
 from bot import Bot
-
-
-def get_windowinfo():
-    """Get position and attributes of the runescape window.
-
-    Returns:
-        dict: {xpos, ypos, width, height}
-    """
-    info = {'xpos': None, 'ypos': None, 'width': None, 'height': None}
-    f = os.popen(r'xwininfo -name "Old School RuneScape"')
-    data = f.readlines()
-    info['xpos'] = int(data[3].split(':')[1].replace(' ', '')[:-1])
-    info['ypos'] = int(data[4].split(':')[1].replace(' ', '')[:-1])
-    info['width'] = int(data[7].split(':')[1].replace(' ', '')[:-1])
-    info['height'] = int(data[8].split(':')[1].replace(' ', '')[:-1])
-    return info
-
-
-def get_array(box):
-    """Get the image of an box in the RS window.
-    Args:
-        box (tupel): (x, y, w, h) image position and size.
-    Returns:
-        im (Image): the image in RGBA format.
-    """
-    wp = get_windowinfo()
-    box = (box[0] + wp['xpos'], box[1] + wp['ypos'],
-           box[0] + box[2] + wp['xpos'], box[1] + box[3] + wp['ypos'])
-    im = ImageGrab.grab(box).convert('RGBA')
-    return im
-
-
-def snap_grab(x, y, w, h, name='/part_snap_' + str(int(time.time()))):
-    """Grab part of the screen and save to png"""
-    wp = get_windowinfo()
-    print(wp)
-    box = (x + wp['xpos'], y + wp['ypos'],
-           x + w + wp['xpos'], y + h + wp['ypos'])
-    print(box)
-    im = ImageGrab.grab(box).convert('RGBA')
-    im.save(os.getcwd() + '/' + name + '.png', format='PNG')
-    print('saving image')
-
-
-def screen_grab():
-    """Grab the screen and save to png"""
-    box = get_windowinfo()
-    im = ImageGrab.grab(
-        (box['xpos'], box['ypos'], box['xpos'] + box['width'],
-         box['ypos'] + box['height'])).convert('RGBA')
-    im.save(os.getcwd() + '/full_snap_' + str(int(time.time())) + '.png')
 
 
 class Miner(Bot):

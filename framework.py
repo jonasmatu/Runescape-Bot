@@ -4,7 +4,8 @@ import tkinter as tk
 from miner import Miner
 import windowTools as wt
 from locator import Locator
-import timeit
+import _thread
+import time
 
 
 class Window:
@@ -16,6 +17,7 @@ class Window:
         self.win_info = wt.get_wininfo()
         self.raw_im = Image.open("Images/train.png")
         self.ar_im = np.array([])
+        self.time = 0
 
         self.miner = Miner(self.win_info)
 
@@ -32,9 +34,7 @@ class Window:
         self.button_update.pack()
 
         self.button_click = tk.Button(
-            master, text='Click', command=lambda: self.miner.click(self.player_pos,
-                                                                   time=1,
-                                                                   radius=5))
+            master, text='Click', command=self.test_thread)
         self.button_click.pack()
 
         self.button_savepic = tk.Button(
@@ -66,6 +66,8 @@ class Window:
 
     def update(self):
         """Update"""
+        print("FPS:", 1/(time.time()-self.time))
+        self.time = time.time()
         self.raw_im = wt.get_full_screen()
         self.ar_gamefield = wt.crop_to_array(self.raw_im, self.gamefield)
         self.street, self.fence = self.locator.get_minimap(
@@ -74,6 +76,8 @@ class Window:
                              self.raw_im.bgra, "raw", "BGRX")
         self.img = ImageTk.PhotoImage(image=im)
 
+        # draw stuff
+        self.canvas.delete("all")
         self.canvas.create_image(
             self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
 
@@ -93,6 +97,10 @@ class Window:
     def run(self):
         while running:
             self.update()
+
+    def test_thread(self):
+        print('Start a new thread to click!')
+        _thread.start_new(self.miner.click, (self.player_pos, 1, 5,))
 
 
 running = True
