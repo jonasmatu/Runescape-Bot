@@ -6,6 +6,7 @@ import windowTools as wt
 from locator import Locator
 import _thread
 import time
+import mss.tools
 
 
 class Window:
@@ -38,7 +39,8 @@ class Window:
         self.button_mine.pack()
 
         self.button_savepic = tk.Button(
-            master, text='Save', command=lambda: self.raw_im.save('Images/im.png'))
+            master, text='Save',
+            command=lambda: mss.tools.to_png(self.raw_im.rgb, self.raw_im.size, output="Images/im.png"))
         self.button_savepic.pack()
 
         self.img = ImageTk.PhotoImage(self.raw_im)
@@ -56,7 +58,7 @@ class Window:
 
         self.locator = Locator()
 
-    def toggle_mining(self):
+    def toggle_mining(self, *ignore):
         self.init_mining = not self.init_mining
         if self.init_mining:
             print("Toggled mining on!")
@@ -73,8 +75,8 @@ class Window:
 
     def update(self):
         """Update"""
-        #print("FPS:", 1/(time.time()-self.time))
-        #self.time = time.time()
+        # print("FPS:", 1/(time.time()-self.time))
+        # self.time = time.time()
         self.raw_im = wt.get_full_screen()
         self.ar_gamefield = wt.crop_to_array(self.raw_im, self.gamefield)
         self.street, self.fence = self.locator.get_minimap(
@@ -125,7 +127,7 @@ def close(*ignore):
 root = tk.Tk()
 window = Window(root)
 root.bind('<Escape>', close)
-root.bind('<M>', window.toggle_mining)
+root.bind('m', window.toggle_mining)
 root.protocol("WM_DELETE_WINDOW", close)
 root.after(500, window.run)
 root.mainloop()

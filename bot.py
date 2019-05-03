@@ -14,12 +14,17 @@ class Bot:
             None."""
         self.winInf = windowInfo
 
-    def click_basic(self, loc):
+    def click_basic(self, loc, time=0, radius=0):
         """Click on location in game without fancy mouse movement.
         Args:
             loc (tuple): location to click in screen-coords.
         Returns:
             None."""
+        if radius != 0:
+            x = loc[0] + random.randint(-radius, radius)
+            y = loc[1] + random.randint(-radius, radius)
+            loc = (x, y)
+
         pg.click(self.winInf[0]+loc[0], self.winInf[1]+loc[1])
 
     def click(self, loc, time=-1, radius=0):
