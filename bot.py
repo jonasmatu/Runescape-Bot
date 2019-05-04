@@ -24,8 +24,8 @@ class Bot:
             x = loc[0] + random.randint(-radius, radius)
             y = loc[1] + random.randint(-radius, radius)
             loc = (x, y)
-
-        pg.click(self.winInf[0]+loc[0], self.winInf[1]+loc[1])
+        pg.moveTo(self.winInf[0]+x, self.winInf[1]+y, time)
+        pg.click()
 
     def click(self, loc, time=-1, radius=0):
         """Click on location in game.

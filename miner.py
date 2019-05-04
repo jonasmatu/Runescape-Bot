@@ -108,7 +108,7 @@ class Miner(Bot):
             if len(self.detect_iron(im_ar)) != 0 and not self.init_mining:
                 loc = (self.nearest_ore[0]+29,
                        self.nearest_ore[1])
-                _thread.start_new_thread(self.click, (loc, 1, 5,))
+                _thread.start_new_thread(self.click, (loc, 0.4, 5,))
                 self.init_mining = True
             elif len(self.detect_iron(im_ar)) == 0:
                 self.init_mining = False

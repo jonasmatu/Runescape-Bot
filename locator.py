@@ -11,7 +11,8 @@ class Locator:
     def __init__(self):
         print('Initialize Locator-Module!')
         self.map_coords = (595, 9, 740, 160)
-        self.street_color1 = np.array([96, 92, 87])
+        #self.street_color1 = np.array([96, 92, 87])
+        self.street_color1 = np.array([92, 89, 83])
         self.fence_color = np.array([244, 237, 229])
         self.fence_color1 = np.array([238, 238, 238])
         self.image = np.array([])
