@@ -51,16 +51,30 @@ class Miner:
         in_shape = (1, 340, 510, 3)
         lamb = 0.001
 
-        l1 = ConvLayer(in_shape, 2, 10, 1, 1, activation='relu')
-        l2 = PoolLayer(l1.dim_out, 2, 2, mode='max')
-        l3 = ConvLayer(l2.dim_out, 4, 20, 1, 2, activation='relu')
-        l4 = PoolLayer(l3.dim_out, 4, 4, mode='max')
-        l5 = ConvLayer(l4.dim_out, 3, 20, 1, 0, activation='relu')
-        l6 = PoolLayer(l5.dim_out, 4, 4, mode='max')
-        l7 = ConvLayer(l6.dim_out, 1, 5, 1, 0, activation='relu')
+        # l1 = ConvLayer(in_shape, 2, 10, 1, 1, activation='lrelu')
+        # l2 = PoolLayer(l1.dim_out, 2, 2, mode='max')
+        # l3 = ConvLayer(l2.dim_out, 4, 20, 1, 2, activation='lrelu')
+        # l4 = PoolLayer(l3.dim_out, 4, 4, mode='max')
+        # l5 = ConvLayer(l4.dim_out, 3, 20, 1, 0, activation='lrelu')
+        # l6 = PoolLayer(l5.dim_out, 4, 4, mode='max')
+        # l7 = ConvLayer(l6.dim_out, 1, 5, 1, 0, activation='lrelu')
+        # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7), lamb=lamb)
 
-        self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7), lamb=lamb)
-        self.net.load_network("model")
+
+        l1 = ConvLayer(in_shape, 2, 10, 1, 1, activation='lrelu')
+        l2 = PoolLayer(l1.dim_out, 2, 2, mode='max')
+        l3 = ConvLayer(l2.dim_out, 4, 20, 1, 2, activation='lrelu')
+        l4 = PoolLayer(l3.dim_out, 2, 2, mode='max')
+        l5 = ConvLayer(l4.dim_out, 2, 20, 1, 0, activation='lrelu')
+        l6 = PoolLayer(l5.dim_out, 4, 4, mode='max')
+        l7 = ConvLayer(l6.dim_out, 2, 20, 1, 0, activation='lrelu')
+        l8 = PoolLayer(l7.dim_out, 2, 2, mode='max')
+
+        #fully connected
+        l9 = ConvLayer(l8.dim_out, 1, 5, 1, 0, activation='lrelu')
+
+        self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
+        self.net.load_network("model_9L")
 
 
 
@@ -93,19 +107,26 @@ class Miner:
         self.canvas.create_image(
             self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
 
-        x_stride = 34
-        y_stride = 34
+        # x_stride = 34
+        # y_stride = 34
 
-        for i in range(0, ores.shape[1]):
-            for j in range(0, ores.shape[2]):
-                if ores[0, i, j][0] > 0.5:
-                    bx, by, w, h = ores[0, i, j][1:]
-                    x1 = (j + bx - w/2) * x_stride + 29
-                    y1 = (i + by - h/2) * y_stride
-                    x2 = (j + bx + w/2) * x_stride + 29
-                    y2 = (i + by + h/2) * y_stride
-                    self.canvas.create_rectangle(x1, y1, x2, y2,
-                                                 fill="", outline="red")
+        # for i in range(0, ores.shape[1]):
+        #     for j in range(0, ores.shape[2]):
+        #         if ores[0, i, j][0] > 0.5:
+        #             bx, by, w, h = ores[0, i, j][1:]
+        #             x1 = (j + bx - w/2) * x_stride + 29
+        #             y1 = (i + by - h/2) * y_stride
+        #             x2 = (j + bx + w/2) * x_stride + 29
+        #             y2 = (i + by + h/2) * y_stride
+        #             self.canvas.create_rectangle(x1, y1, x2, y2,
+        #                                          fill="", outline="red")
+
+        ores = self.net.non_max_suppression(ores, 0.25)
+        for i in range(len(ores)):
+            self.canvas.create_rectangle(ores[i, 1], ores[i, 2], ores[i, 3], ores[i, 4],
+                                         fill="", outline="red")
+
+        
         
         # self.player = self.canvas.create_oval(
         #     self.player_pos[0]-5 +

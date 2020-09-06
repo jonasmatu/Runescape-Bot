@@ -30,6 +30,9 @@ class Classifier:
         self.button_next = tk.Button(master, text="next", command=self._display_im)
         self.button_next.pack()
 
+        self.button_delete = tk.Button(master, text="delete last", command=self.delete_data)
+        self.button_delete.pack()
+
         self.canvas.bind("<ButtonPress-1>", self.on_button_press)
         self.canvas.bind("<B1-Motion>", self.on_move_press)
         self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
@@ -122,7 +125,19 @@ class Classifier:
 
             print("Data saved in file {:} !".format(self.hfile))
 
-        
+
+    def delete_data(self):
+        """Delete last entry from file"""
+        with h5py.File(self.hfile, 'a') as f:
+            g = f['Data']
+            X_data = g['X_data']
+            Y_data = g['Y_data']
+            n = X_data.shape[0]
+            Y_data.resize((n-1, *self.data.shape))
+            X_data.resize((n-1, *self.ar_im[:, :, :3].shape))
+            f.close()
+
+        print("Last entry deleted in file {:} !".format(self.hfile))
 
 running = False
 

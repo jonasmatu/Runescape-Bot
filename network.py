@@ -44,22 +44,26 @@ class Network:
             end = -1
         else:
             end = (i+1)*size
-        
-        return cp.array(X[permutation[i*size:end]]), cp.array(Y[permutation[i*size:end]])
 
+        return cp.array(X[permutation[i*size:end]]), cp.array(Y[permutation[i*size:end]])
 
     def compute_cost(self, A, Y, lamb_coord, lamb_noobj):
         """Cost function for the YOLO algorithm."""
         m = Y.shape[0]
         L2 = 0
+        # print(cp.where((cp.sqrt(A[:,:,:,3])-cp.sqrt(Y[:,:,:, 3]))**2 == cp.nan))
+        # print(cp.where( (cp.sqrt(A[:,:,:,4])-cp.sqrt(Y[:,:,:, 4]))**2 == cp.nan))
         for l in self.layers:
             L2 += self.lamb/m/2*cp.sum(cp.square(l.W))
-        cost = 1/m * lamb_coord * Y[:, :, :, 0] * ((A[:,:,:,1]-Y[:, :, :, 1])**2
-                                                   + (A[:, :, :, 2]-Y[:,:, :, 2])**2
-                                                   + (cp.sqrt(A[:,:,:,3])-cp.sqrt(Y[:,:,:, 3]))**2
-                                                   + (cp.sqrt(A[:,:,:,4])-cp.sqrt(Y[:,:,:, 4]))**2)
-        cost += 1/m*(Y[:, :, :, 0]*(A[:,:,:,0]-Y[:, :, :, 0])**2 +
-                     lamb_noobj*(1-Y[:,:,:,0])*(A[:,:,:,0]-Y[:, :, :, 0])**2)
+        cost = 1/m * lamb_coord * Y[:, :, :, 0] * ((A[:, :, :, 1]-Y[:, :, :, 1])**2
+                                                   + (A[:, :, :, 2] -
+                                                      Y[:, :, :, 2])**2
+                                                   + (cp.sqrt(A[:, :, :, 3])-cp.sqrt(Y[:, :, :, 3]))**2
+                                                   + (cp.sqrt(A[:, :, :, 4])-cp.sqrt(Y[:, :, :, 4]))**2)
+        # print(cp.where(cost == cp.nan))
+        # print(cost)
+        cost += 1/m*(Y[:, :, :, 0]*(A[:, :, :, 0]-Y[:, :, :, 0])**2 +
+                     lamb_noobj*(1-Y[:, :, :, 0])*(A[:, :, :, 0]-Y[:, :, :, 0])**2)
         cost = cp.sum(cost) + L2
         return cost
 
@@ -72,13 +76,16 @@ class Network:
             np.array: dA
         """
         dA = np.zeros_like(Y)
-        dA[:,:,:,0] = 2*(A[:,:,:,0]-Y[:,:,:,0])*(Y[:,:,:,0] + (1-Y[:,:,:,0])*lamb_noobj)
-        dA[:,:,:,1] = lamb_coord*2*Y[:,:,:,0]*(A[:,:,:,1]-Y[:, :, :, 1])
-        dA[:,:,:,2] = lamb_coord*2*Y[:,:,:,0]*(A[:,:,:,2]-Y[:, :, :, 2])
-        dA[:,:,:,3] = lamb_coord*Y[:,:,:,0]*cp.nan_to_num((cp.sqrt(A[:,:,:,3])-cp.sqrt(Y[:, :, :, 3]))
-                                                          /cp.sqrt(A[:,:,:,3]))
-        dA[:,:,:,4] = lamb_coord*Y[:,:,:,0]*cp.nan_to_num((cp.sqrt(A[:,:,:,4])-cp.sqrt(Y[:, :, :, 4]))
-                                                          /cp.sqrt(A[:,:,:,4]))
+        dA[:, :, :, 0] = 2*(A[:, :, :, 0]-Y[:, :, :, 0]) * \
+            (Y[:, :, :, 0] + (1-Y[:, :, :, 0])*lamb_noobj)
+        dA[:, :, :, 1] = lamb_coord*2*Y[:, :, :, 0] * \
+            (A[:, :, :, 1]-Y[:, :, :, 1])
+        dA[:, :, :, 2] = lamb_coord*2*Y[:, :, :, 0] * \
+            (A[:, :, :, 2]-Y[:, :, :, 2])
+        dA[:, :, :, 3] = lamb_coord*Y[:, :, :, 0]*cp.nan_to_num((cp.sqrt(A[:, :, :, 3])-cp.sqrt(Y[:, :, :, 3]))
+                                                                / cp.sqrt(A[:, :, :, 3]))
+        dA[:, :, :, 4] = lamb_coord*Y[:, :, :, 0]*cp.nan_to_num((cp.sqrt(A[:, :, :, 4])-cp.sqrt(Y[:, :, :, 4]))
+                                                                / cp.sqrt(A[:, :, :, 4]))
         return dA
 
     def forward_prop(self, X):
@@ -94,6 +101,64 @@ class Network:
         for l in reversed(self.layers):
             dA = l.backward(dA)
             l.update_parameters(rate, t)
+
+    def non_max_suppression(self, A, threshold=0.5):
+        """Remove overlapping bounding boxes. Returns filterd boxes in screen coordinates and
+        as an array with shape (n_boxes, (x1, y1, x2, y2)).
+        Args:
+            A (np.array): predicted labels and boxes.
+            threshold (float): overlap threshold to treat as new box
+        Returns:
+            np.array: only max boxes.
+        """
+        x_stride = 34
+        y_stride = 34
+        score = []
+        x1 = []
+        x2 = []
+        y1 = []
+        y2 = []
+        for i in range(0, A.shape[1]):
+            for j in range(0, A.shape[2]):
+                if A[0, i, j][0] > 0.5:
+                    bx, by, w, h = A[0, i, j][1:]
+                    score.append(A[0, i, j, 0])
+                    x1.append((j + bx - w/2) * x_stride + 29)
+                    y1.append((i + by - h/2) * y_stride)
+                    x2.append((j + bx + w/2) * x_stride + 29)
+                    y2.append((i + by + h/2) * y_stride)
+
+        score = np.array(score)
+        x1 = cp.array(x1)
+        x2 = cp.array(x2)
+        y1 = cp.array(y1)
+        y2 = cp.array(y2)
+
+        score_indexes = score.argsort().tolist()
+        boxes_keep_index = []
+        while len(score_indexes) > 0:
+            index = score_indexes.pop()
+            boxes_keep_index.append(index)
+            if not len(score_indexes):
+                break
+            #iou
+            xs1 = cp.maximum(x1[index], x1[score_indexes])
+            ys1 = cp.maximum(y1[index], y1[score_indexes])
+            xs2 = cp.minimum(x2[index], x2[score_indexes])
+            ys2 = cp.minimum(y2[index], y2[score_indexes])
+            intersections = cp.maximum(ys2 - ys1, 0) * cp.maximum(xs2 - xs1, 0)
+            unions = (x2[index]-x1[index])*(y2[index]-y1[index]) \
+                + (x2[score_indexes]-x1[score_indexes])*(y2[score_indexes]-y1[score_indexes]) \
+                - intersections
+            ious = np.array(cp.asnumpy(intersections / unions))
+            filtered_indexes = set((ious > threshold).nonzero()[0])
+            score_indexes = [v for (i, v) in enumerate(score_indexes)
+                              if i not in filtered_indexes]
+
+        nms_res = np.zeros((len(boxes_keep_index), 5))
+        for i, j in enumerate(boxes_keep_index):
+            nms_res[i, :] = np.array([score[j], x1[j], y1[j], x2[j], y2[j]])
+        return nms_res
 
     def predict(self, X, show=True):
         """Predict single image.
@@ -123,8 +188,8 @@ class Network:
         for l in self.layers:
             X = l.forward(X)
         A = X
-        pred = (A[:,:,:,0] >= 0.5).astype(cp.float32)
-        acc = (pred == Y[:,:,:,0]).astype(cp.float32)
+        pred = (A[:, :, :, 0] >= 0.5).astype(cp.float32)
+        acc = (pred == Y[:, :, :, 0]).astype(cp.float32)
         acc = cp.sum(acc)/(acc.shape[0]*acc.shape[1]*acc.shape[2])
         print("Accuracy: {:.2f}%".format(float(acc*100)))
         return acc
@@ -143,6 +208,7 @@ class Network:
                 mX, mY = self.get_minibatch(X, Y, mb_size, j, permutation)
                 A = self.forward_prop(mX)
                 c = self.compute_cost(A, mY, self.lamb_coord, self.lamb_noobj)
+                # print(c)
                 cost_sum += c
                 self.backward_prop(A, mY, rate, t)
                 t += 1
@@ -153,4 +219,3 @@ class Network:
                 acc.append(self.test_accuracy(X_test, Y_test))
                 print()
         return cost, acc
-

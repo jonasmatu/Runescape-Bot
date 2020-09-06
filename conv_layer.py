@@ -3,7 +3,7 @@ import cupy as np
 
 
 class ConvLayer:
-    def __init__(self, dim_in, f, c, stride, pad, activation='relu'):
+    def __init__(self, dim_in, f, c, stride, pad, activation='relu', a_lrelu=0.05):
         """Initialise the convolutional layer of the neural network.
         """
         self.dim_in = dim_in
@@ -16,6 +16,7 @@ class ConvLayer:
         self.stride = stride
         self.pad = pad
         self.activation = activation
+        self.a_lrelu = a_lrelu
         self.lamb = 0
         self.X_pad = np.pad(np.zeros(dim_in), ((0, 0), (pad, pad),
                                                (pad, pad), (0, 0)),
@@ -55,7 +56,7 @@ class ConvLayer:
         """
         return (z > 0).astype(np.float32)
 
-    def _lrelu(self, z, a):
+    def _lrelu(self, z):
         """Leaky ReLu activation function.
         Args:
             z (np.array): input
@@ -63,16 +64,16 @@ class ConvLayer:
         Returns:
             np.array.
         """
-        return np.maximum(0, z) + a*np.minimum(0, z)
+        return np.maximum(0, z) + self.a_lrelu*np.minimum(0, z)
 
-    def _deriv_relu(self, z, a):
+    def _deriv_lrelu(self, z):
         """Derivative of ReLu function
         Args:
             z (np.array): input values
         Returns:
             np.array: derivative at z.
         """
-        return (z > 0).astype(np.float32) + a*(z < 0).astype(np.float32)
+        return (z > 0).astype(np.float32) + self.a_lrelu*(z < 0).astype(np.float32)
 
 
     def _allocate_dZ_pad(self, m):
@@ -127,7 +128,7 @@ class ConvLayer:
         if self.activation == 'relu':
             return self._relu(self.Z)
         elif self.activation == 'lrelu':
-            return self._lrelu(self.Z, 0.05)
+            return self._lrelu(self.Z)
         elif self.activation == 'none':
             return self.Z
 
@@ -146,7 +147,7 @@ class ConvLayer:
         if self.activation == 'relu':
             dZ = dA * self._deriv_relu(self.Z)
         elif self.activation == 'lrelu':
-            dZ = dA * self._deriv_lrelu(self.Z, 0.05)
+            dZ = dA * self._deriv_lrelu(self.Z)
         for h in range(n_h):
             v_s = h*self.stride
             v_e = h*self.stride + self.f
@@ -177,7 +178,7 @@ class ConvLayer:
         if self.activation == 'relu':
             df = self._deriv_relu(self.Z)
         elif self.activation == 'lrelu':
-            df = self._deriv_lrelu(self.Z, 0.05)
+            df = self._deriv_lrelu(self.Z)
         if len(dA.shape) == 2:
             dZ = dA.reshape(dA.shape[1], *self.dim_out[1:]
                             ) * df
