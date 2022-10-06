@@ -1,15 +1,48 @@
 from PIL import ImageTk, Image
 import numpy as np
-import cupy as cp 
 import tkinter as tk
 import windowTools as wt
 import _thread
 import time
 import h5py
 
-import network as nn
-from conv_layer import ConvLayer
-from pool_layer import PoolLayer
+import tensorflow as tf
+
+# import network as nn
+# from conv_layer import ConvLayer
+# from pool_layer import PoolLayer
+
+@tf.function()
+def yolo_loss(y, y_pred):
+    """Cost function for the YOLO algorithm."""
+    A = y_pred
+    #tf.print(A.shape)
+    #tf.print(A[np.where(A < 0)])
+    Y = y
+    lamb_coord = 1
+    lamb_noobj = .2
+    # Coordinate loss
+    cost_coord = (lamb_coord * Y[:,:,:, 0] * (tf.square(A[:,:,:, 1] - Y[:,:,:, 1]) +
+                                            tf.square(A[:,:,:, 2] - Y[:,:,:, 2]) +
+                                            tf.square(tf.sqrt(tf.abs(A[:,:,:, 3]))-tf.sqrt(tf.abs(Y[:,:,:, 3])))
+                                            + tf.square(tf.sqrt(tf.abs(A[:,:,:, 4]))-tf.sqrt(tf.abs(Y[:,:,:, 4])))))
+
+    # confidence
+    cost_conf= (Y[:,:,:, 0]*tf.square(A[:,:,:, 0]-Y[:,:,:, 0]) +
+                lamb_noobj*(1-Y[:,:,:, 0])*tf.square(A[:,:,:, 0]-Y[:,:,:, 0]))
+
+    # class loss:
+    cost_class =  tf.square(Y[:,:,:, 5:] - A[:,:,:, 5:])
+
+    # cost = tf.sum(cost) # + L2
+    # return cost_coord + cost_conf + cost_class
+    cost = cost_coord + cost_conf + cost_coord
+    # cost = tf.clip_by_value(cost, -1e6, 1e6)
+    cost = tf.math.reduce_sum(tf.math.reduce_sum(cost, axis=-1), axis=-1)
+    tf.print(cost)
+    cost = tf.math.reduce_sum(cost)
+    return cost
+
 
 
 class Miner:
@@ -61,20 +94,22 @@ class Miner:
         # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7), lamb=lamb)
 
 
-        l1 = ConvLayer(in_shape, 2, 10, 1, 1, activation='lrelu')
-        l2 = PoolLayer(l1.dim_out, 2, 2, mode='max')
-        l3 = ConvLayer(l2.dim_out, 4, 20, 1, 2, activation='lrelu')
-        l4 = PoolLayer(l3.dim_out, 2, 2, mode='max')
-        l5 = ConvLayer(l4.dim_out, 2, 20, 1, 0, activation='lrelu')
-        l6 = PoolLayer(l5.dim_out, 4, 4, mode='max')
-        l7 = ConvLayer(l6.dim_out, 2, 20, 1, 0, activation='lrelu')
-        l8 = PoolLayer(l7.dim_out, 2, 2, mode='max')
+        # l1 = ConvLayer(in_shape, 2, 10, 1, 1, activation='lrelu')
+        # l2 = PoolLayer(l1.dim_out, 2, 2, mode='max')
+        # l3 = ConvLayer(l2.dim_out, 4, 20, 1, 2, activation='lrelu')
+        # l4 = PoolLayer(l3.dim_out, 2, 2, mode='max')
+        # l5 = ConvLayer(l4.dim_out, 2, 20, 1, 0, activation='lrelu')
+        # l6 = PoolLayer(l5.dim_out, 4, 4, mode='max')
+        # l7 = ConvLayer(l6.dim_out, 2, 20, 1, 0, activation='lrelu')
+        # l8 = PoolLayer(l7.dim_out, 2, 2, mode='max')
 
-        #fully connected
-        l9 = ConvLayer(l8.dim_out, 1, 5, 1, 0, activation='lrelu')
+        # #fully connected
+        # l9 = ConvLayer(l8.dim_out, 1, 5, 1, 0, activation='lrelu')
 
-        self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
-        self.net.load_network("model_9L")
+        # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
+        # self.net.load_network("model_9L")
+        self.net = tf.keras.models.load_model("testmodel.h5", compile=False)
+        
 
 
 
@@ -99,8 +134,9 @@ class Miner:
         self.img = ImageTk.PhotoImage(image=im)
 
 
-        X_data = cp.array(self.ar_gamefield[np.newaxis,:]/255)
-        ores = self.net.forward_prop(X_data)
+        X_data = np.array(self.ar_gamefield[np.newaxis,:]/255)
+        # ores = self.net.forward_prop(X_data)
+        obj = self.net.predict(X_data)
         
         # draw stuff
         self.canvas.delete("all")
@@ -121,7 +157,7 @@ class Miner:
         #             self.canvas.create_rectangle(x1, y1, x2, y2,
         #                                          fill="", outline="red")
 
-        ores = self.net.non_max_suppression(ores, 0.25)
+        ores = self.non_max_suppression(obj, 0.25)
         for i in range(len(ores)):
             self.canvas.create_rectangle(ores[i, 1], ores[i, 2], ores[i, 3], ores[i, 4],
                                          fill="", outline="red")
@@ -150,6 +186,64 @@ class Miner:
     def test_thread(self):
         print('Start a new thread to click!')
         _thread.start_new(self.miner.click, (self.player_pos, 1, 5,))
+
+    def non_max_suppression(self, A, threshold=0.5):
+        """Remove overlapping bounding boxes. Returns filterd boxes in screen coordinates and
+        as an array with shape (n_boxes, (x1, y1, x2, y2)).
+        Args:
+            A (np.array): predicted labels and boxes.
+            threshold (float): overlap threshold to treat as new box
+        Returns:
+            np.array: only max boxes.
+        """
+        x_stride = 34
+        y_stride = 34
+        score = []
+        x1 = []
+        x2 = []
+        y1 = []
+        y2 = []
+        for i in range(0, A.shape[1]):
+            for j in range(0, A.shape[2]):
+                if A[0, i, j][0] > 0.5:
+                    bx, by, w, h = A[0, i, j][1:5]
+                    score.append(A[0, i, j, 0])
+                    x1.append((j + bx - w/2) * x_stride + 29)
+                    y1.append((i + by - h/2) * y_stride)
+                    x2.append((j + bx + w/2) * x_stride + 29)
+                    y2.append((i + by + h/2) * y_stride)
+
+        score = np.array(score)
+        x1 = np.array(x1)
+        x2 = np.array(x2)
+        y1 = np.array(y1)
+        y2 = np.array(y2)
+
+        score_indexes = score.argsort().tolist()
+        boxes_keep_index = []
+        while len(score_indexes) > 0:
+            index = score_indexes.pop()
+            boxes_keep_index.append(index)
+            if not len(score_indexes):
+                break
+            #iou
+            xs1 = np.maximum(x1[index], x1[score_indexes])
+            ys1 = np.maximum(y1[index], y1[score_indexes])
+            xs2 = np.minimum(x2[index], x2[score_indexes])
+            ys2 = np.minimum(y2[index], y2[score_indexes])
+            intersections = np.maximum(ys2 - ys1, 0) * np.maximum(xs2 - xs1, 0)
+            unions = (x2[index]-x1[index])*(y2[index]-y1[index]) \
+                + (x2[score_indexes]-x1[score_indexes])*(y2[score_indexes]-y1[score_indexes]) \
+                - intersections
+            ious = np.array(intersections / unions)
+            filtered_indexes = set((ious > threshold).nonzero()[0])
+            score_indexes = [v for (i, v) in enumerate(score_indexes)
+                              if i not in filtered_indexes]
+
+        nms_res = np.zeros((len(boxes_keep_index), 5))
+        for i, j in enumerate(boxes_keep_index):
+            nms_res[i, :] = np.array([score[j], x1[j], y1[j], x2[j], y2[j]])
+        return nms_res
 
 
 running = True

@@ -10,33 +10,27 @@ class Classifier:
     def __init__(self, master, hfile):
         self.master = master
         master.title("Image Data Annotations")
+
+        self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow"]
+        self.objects= ["iron ore", "copper ore", "empty ore", "player", "tree", "rat"]
+        
         self.hfile = hfile
-        self.canvas = tk.Canvas(master, width=600, height=400)
-        self.canvas.pack()
+
+        frame1, frame2 = self.create_frames(master)
+        frame1.pack()
+        frame2.pack()
+
         self.x = 0
         self.y = 0
         self.x_offset = 20  # image offset in canvas
         self.y_offset = 20
         self.grid_x = 15
         self.grid_y = 10
-        self.data = np.zeros((self.grid_y, self.grid_x, 5))
+        self.data = np.zeros((self.grid_y, self.grid_x, 5+len(self.objects)))
+
+        self.last_data = (0,0)
 
         self._display_im()
-
-        self.button_save = tk.Button(
-            master, text='Save', command=self.save_data)
-        self.button_save.pack()
-
-        self.button_next = tk.Button(master, text="next", command=self._display_im)
-        self.button_next.pack()
-
-        self.button_delete = tk.Button(master, text="delete last", command=self.delete_data)
-        self.button_delete.pack()
-
-        self.canvas.bind("<ButtonPress-1>", self.on_button_press)
-        self.canvas.bind("<B1-Motion>", self.on_move_press)
-        self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
-
         self.rect = None
 
         self.start_x = None
@@ -44,9 +38,48 @@ class Classifier:
 
         self.rectangles = []
 
+
+
+    def create_frames(self, master):
+        frame1 = tk.Frame(master)
+        self.canvas = tk.Canvas(frame1, width=600, height=400)
+        self.canvas.pack()
+
+        frame = tk.Frame(master)
+        # frame.columnconfigure(0, weight=1)
+        # frame.columnconfigure(1, weight=1)
+        
+        button_save = tk.Button(
+            frame, text='Save', command=self.save_data).grid(column=0, row=0)
+        #self.button_save.pack()
+
+        button_next = tk.Button(frame, text="next", command=self._display_im).grid(column=0, row=1)
+        #self.button_next.pack()
+
+        button_delete = tk.Button(frame, text="delete last Image", command=self.delete_data).grid(column=0, row=2, sticky="w")
+        button_delete_box = tk.Button(frame, text="delete last box", command=self.delete_box).grid(column=0, row=2, sticky="e")
+        #self.button_delete.pack()
+
+        self.canvas.bind("<ButtonPress-1>", self.on_button_press)
+        self.canvas.bind("<B1-Motion>", self.on_move_press)
+        self.canvas.bind("<ButtonRelease-1>", self.on_button_release)
+        
+        self.lb = tk.Listbox(frame)
+        sb = tk.Scrollbar(frame, orient=tk.VERTICAL)
+        self.lb.configure(yscrollcommand=sb.set)
+        sb.config(command=self.lb.yview)
+        for obj in self.objects:
+            self.lb.insert("end", obj)
+
+        self.lb.grid(column=1, row=0, rowspan=3)
+        self.lb.select_set(0)
+        sb.grid(column=2, row=0, rowspan=3, sticky='ns')
+
+        return frame1, frame
+
     def _display_im(self):
         self.canvas.delete("all")
-        self.data = np.zeros((self.grid_y, self.grid_x, 5))
+        self.data = np.zeros((self.grid_y, self.grid_x, 5+len(self.objects)))
         self.ar_im = wt.get_array((30, 2, 510, 340))
         self.img = ImageTk.PhotoImage(Image.fromarray(self.ar_im))
         self.im_w = self.ar_im.shape[1]
@@ -62,7 +95,9 @@ class Classifier:
 
         # create rectangle if not yet exist
         #if not self.rect:
-        self.rect = self.canvas.create_rectangle(self.x, self.y, 1, 1, fill="", outline="red")
+        
+        outline = self.colors[self.lb.curselection()[0]]
+        self.rect = self.canvas.create_rectangle(self.x, self.y, 1, 1, fill="", outline=outline)
 
     def on_move_press(self, event):
         curX, curY = (event.x, event.y)
@@ -89,7 +124,11 @@ class Classifier:
         h = np.abs(coords[1] - coords[3])/34
 
         # append
-        self.data[cell_y, cell_x] = np.array([1, bx, by, w, h])
+        obj = [0 for i in self.objects]
+        obj[self.lb.curselection()[0]] = 1
+        print(obj)
+        self.data[cell_y, cell_x] = np.array([1, bx, by, w, h, *obj])
+        self.last_data= (cell_y, cell_x)
 
     def save_data(self):
         """Save the simulation data into an existing h5 file.
@@ -106,7 +145,8 @@ class Classifier:
             with h5py.File(self.hfile, 'w') as f:
                 g = f.create_group("Data")
                 X_data = g.create_dataset("X_data", shape=(1, 340, 510, 3), maxshape=(None, 340, 510, 3))
-                Y_data = g.create_dataset("Y_data", shape=(1, 10, 15, 5), maxshape=(None, 10, 15, 5))
+                Y_data = g.create_dataset("Y_data", shape=(1, 10, 15, 5+len(self.objects)),
+                                          maxshape=(None, 10, 15, 5+len(self.objects)))
                 X_data[0] = self.ar_im[:, :, :3]
                 Y_data[0] = self.data
                 f.close()
@@ -125,6 +165,11 @@ class Classifier:
 
             print("Data saved in file {:} !".format(self.hfile))
 
+    def delete_box(self):
+        "delete last entry"
+        print("deleted last entry")
+        self.data[self.last_data[0], self.last_data[1]] = 0
+        self.canvas.delete(self.rect)
 
     def delete_data(self):
         """Delete last entry from file"""
