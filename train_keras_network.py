@@ -43,14 +43,12 @@ def yolo_loss(y, y_pred):
     # return cost_coord + cost_conf + cost_class
     cost = cost_coord + cost_conf + cost_coord
     # cost = tf.clip_by_value(cost, -1e6, 1e6)
-    cost = tf.math.reduce_sum(tf.math.reduce_sum(cost, axis=-1), axis=-1)
-    tf.print(cost)
     cost = tf.math.reduce_sum(cost)
     return cost
 
 X_data, Y_data = load_data("5objectdata.h5")
 
-mb_size = 1
+mb_size = 5
 in_shape = (X_data.shape[1:])
 
 eta = 0.001
@@ -58,22 +56,23 @@ beta1=0.9
 beta2=0.999
 lamb = 0.001
 
-model = tf.keras.Sequential()
+# model = tf.keras.Sequential()
 
-model.add(tf.keras.layers.ZeroPadding2D(padding=(1, 1)))
-model.add(tf.keras.layers.Conv2D(10, input_shape=in_shape, strides=1, kernel_size=(2,2),
-                                 activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
-model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
-model.add(tf.keras.layers.ZeroPadding2D(padding=(2, 2)))
-model.add(tf.keras.layers.Conv2D(20, strides=1, kernel_size=(4,4), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
-model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
-model.add(tf.keras.layers.Conv2D(20,strides=1, kernel_size=(2,2), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
-model.add(tf.keras.layers.MaxPooling2D(pool_size=(4,4)))
-model.add(tf.keras.layers.ZeroPadding2D(padding=(1,1)))
-model.add(tf.keras.layers.Conv2D(20,strides=1, kernel_size=(2,2), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
-model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
-model.add(tf.keras.layers.Conv2D(11, strides=1, kernel_size=(2,2), activation="relu"))
+# model.add(tf.keras.layers.ZeroPadding2D(padding=(1, 1)))
+# model.add(tf.keras.layers.Conv2D(10, input_shape=in_shape, strides=1, kernel_size=(2,2),
+#                                  activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
+# model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
+# model.add(tf.keras.layers.ZeroPadding2D(padding=(2, 2)))
+# model.add(tf.keras.layers.Conv2D(20, strides=1, kernel_size=(4,4), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
+# model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
+# model.add(tf.keras.layers.Conv2D(20,strides=1, kernel_size=(2,2), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
+# model.add(tf.keras.layers.MaxPooling2D(pool_size=(4,4)))
+# model.add(tf.keras.layers.ZeroPadding2D(padding=(1,1)))
+# model.add(tf.keras.layers.Conv2D(20,strides=1, kernel_size=(2,2), activation=tf.keras.layers.LeakyReLU(alpha=0.1)))
+# model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
+# model.add(tf.keras.layers.Conv2D(11, strides=1, kernel_size=(2,2), activation="relu"))
 
+model = tf.keras.models.load_model("testmodel.h5", compile=False)
 
 model.compile(loss = yolo_loss, 
    optimizer = keras.optimizers.Adam(learning_rate=0.001), metrics = ['accuracy'])
