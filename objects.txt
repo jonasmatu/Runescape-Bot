@@ -1,0 +1,10 @@
+iron ore
+copper ore
+tin ore
+empty ore
+player
+tree
+rat
+goblin
+cow
+chicken

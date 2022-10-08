@@ -1,5 +1,5 @@
-#import numpy as np
-import cupy as np
+import numpy as np
+#import cupy as np
 
 
 class ConvLayer:
@@ -74,7 +74,6 @@ class ConvLayer:
             np.array: derivative at z.
         """
         return (z > 0).astype(np.float32) + self.a_lrelu*(z < 0).astype(np.float32)
-
 
     def _allocate_dZ_pad(self, m):
         """Allocate memory for the padded dZ values for

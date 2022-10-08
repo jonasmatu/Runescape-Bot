@@ -12,37 +12,6 @@ import tensorflow as tf
 # from conv_layer import ConvLayer
 # from pool_layer import PoolLayer
 
-@tf.function()
-def yolo_loss(y, y_pred):
-    """Cost function for the YOLO algorithm."""
-    A = y_pred
-    #tf.print(A.shape)
-    #tf.print(A[np.where(A < 0)])
-    Y = y
-    lamb_coord = 1
-    lamb_noobj = .2
-    # Coordinate loss
-    cost_coord = (lamb_coord * Y[:,:,:, 0] * (tf.square(A[:,:,:, 1] - Y[:,:,:, 1]) +
-                                            tf.square(A[:,:,:, 2] - Y[:,:,:, 2]) +
-                                            tf.square(tf.sqrt(tf.abs(A[:,:,:, 3]))-tf.sqrt(tf.abs(Y[:,:,:, 3])))
-                                            + tf.square(tf.sqrt(tf.abs(A[:,:,:, 4]))-tf.sqrt(tf.abs(Y[:,:,:, 4])))))
-
-    # confidence
-    cost_conf= (Y[:,:,:, 0]*tf.square(A[:,:,:, 0]-Y[:,:,:, 0]) +
-                lamb_noobj*(1-Y[:,:,:, 0])*tf.square(A[:,:,:, 0]-Y[:,:,:, 0]))
-
-    # class loss:
-    cost_class =  tf.square(Y[:,:,:, 5:] - A[:,:,:, 5:])
-
-    # cost = tf.sum(cost) # + L2
-    # return cost_coord + cost_conf + cost_class
-    cost = cost_coord + cost_conf + cost_coord
-    # cost = tf.clip_by_value(cost, -1e6, 1e6)
-    cost = tf.math.reduce_sum(tf.math.reduce_sum(cost, axis=-1), axis=-1)
-    tf.print(cost)
-    cost = tf.math.reduce_sum(cost)
-    return cost
-
 
 
 class Miner:
@@ -61,7 +30,7 @@ class Miner:
         self.player_pos = (285, 180)  # absolute coordinates (x, y)
         self.nearest_ore = self.player_pos
         # image and buttons
-        self.canvas = tk.Canvas(master, width=900, height=800)
+        self.canvas = tk.Canvas(master, width=800, height=600)
         self.canvas.pack()
 
         self.button_update = tk.Button(
@@ -108,7 +77,7 @@ class Miner:
 
         # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
         # self.net.load_network("model_9L")
-        self.net = tf.keras.models.load_model("testmodel.h5", compile=False)
+        self.net = tf.keras.models.load_model("testmodel10.h5", compile=False)
         
 
 
@@ -137,7 +106,6 @@ class Miner:
         X_data = np.array(self.ar_gamefield[np.newaxis,:]/255)
         # ores = self.net.forward_prop(X_data)
         obj = self.net.predict(X_data)
-        
         # draw stuff
         self.canvas.delete("all")
         self.canvas.create_image(
@@ -156,8 +124,8 @@ class Miner:
         #             y2 = (i + by + h/2) * y_stride
         #             self.canvas.create_rectangle(x1, y1, x2, y2,
         #                                          fill="", outline="red")
-
         ores = self.non_max_suppression(obj, 0.25)
+        print(ores)
         for i in range(len(ores)):
             self.canvas.create_rectangle(ores[i, 1], ores[i, 2], ores[i, 3], ores[i, 4],
                                          fill="", outline="red")
@@ -205,7 +173,7 @@ class Miner:
         y2 = []
         for i in range(0, A.shape[1]):
             for j in range(0, A.shape[2]):
-                if A[0, i, j][0] > 0.5:
+                if A[0, i, j][0] > threshold:
                     bx, by, w, h = A[0, i, j][1:5]
                     score.append(A[0, i, j, 0])
                     x1.append((j + bx - w/2) * x_stride + 29)

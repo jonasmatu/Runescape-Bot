@@ -7,12 +7,16 @@ import argparse
 import os.path
 
 class Classifier:
-    def __init__(self, master, hfile):
+    def __init__(self, master, hfile, obj_file):
         self.master = master
         master.title("Image Data Annotations")
 
-        self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow"]
-        self.objects= ["iron ore", "copper ore", "empty ore", "player", "tree", "rat"]
+        self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow", "brown",
+                      "violet", "dark violet", "forrest green", "mint cream", "misty rose",
+                      "cyan", "lavender blush", "salmon", "coral", "tomato", "ivory", "azure"]
+
+        self.objects= []
+        self.load_objects(obj_file)
         
         self.hfile = hfile
 
@@ -39,6 +43,10 @@ class Classifier:
         self.rectangles = []
 
 
+    def load_objects(self,obj_file):
+        with open(obj_file, "r") as f:
+            for line in f.readlines():
+                self.objects.append(line)
 
     def create_frames(self, master):
         frame1 = tk.Frame(master)
@@ -198,7 +206,7 @@ parser.add_argument('-f', '--file')
 args = parser.parse_args()
     
 root = tk.Tk()
-window = Classifier(root, args.file)
+window = Classifier(root, args.file, "objects.txt")
 root.bind('<Escape>', close)
 root.protocol("WM_DELETE_WINDOW", close)
 #root.after(500, window.run)

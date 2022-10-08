@@ -141,7 +141,7 @@ class Network:
             boxes_keep_index.append(index)
             if not len(score_indexes):
                 break
-            #iou
+            # iou
             xs1 = cp.maximum(x1[index], x1[score_indexes])
             ys1 = cp.maximum(y1[index], y1[score_indexes])
             xs2 = cp.minimum(x2[index], x2[score_indexes])
@@ -153,7 +153,7 @@ class Network:
             ious = np.array(cp.asnumpy(intersections / unions))
             filtered_indexes = set((ious > threshold).nonzero()[0])
             score_indexes = [v for (i, v) in enumerate(score_indexes)
-                              if i not in filtered_indexes]
+                             if i not in filtered_indexes]
 
         nms_res = np.zeros((len(boxes_keep_index), 5))
         for i, j in enumerate(boxes_keep_index):
