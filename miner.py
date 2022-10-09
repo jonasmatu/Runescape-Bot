@@ -137,7 +137,7 @@ class Miner:
 
         # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
         # self.net.load_network("model_9L")
-        self.net = tf.keras.models.load_model("miner10_full.h5", compile=False, custom_objects=custom_objs)
+        self.net = tf.keras.models.load_model("models/miner10_full.h5", compile=False, custom_objects=custom_objs)
         
 
 
@@ -171,7 +171,7 @@ class Miner:
         self.canvas.create_image(
             self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
 
-        objects = self.non_max_suppression(obj, 0.25)
+        objects = self.non_max_suppression(obj)
         for i in range(len(objects)):
             self.canvas.create_rectangle(objects[i, 1], objects[i, 2], objects[i, 3], objects[i, 4],
                                          fill="", outline=self.colors[int(objects[i,5])])

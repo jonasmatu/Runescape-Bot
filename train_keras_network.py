@@ -76,7 +76,7 @@ custom_objs = {'yolo_activation': yolo_activation, "yolo_accuracy_object" : yolo
 get_custom_objects().update(custom_objs)
 
     
-X_data, Y_data = load_data("10objectdata.h5")
+X_data, Y_data = load_data("data/10objectdata.h5")
 # X_data, Y_data = load_data("5objectdata.h5")
 # X_data = X_data[0].reshape(1, *X_data.shape[1:])
 # Y_data = Y_data[0].reshape(1, *Y_data.shape[1:])
@@ -87,26 +87,26 @@ out_len = Y_data.shape[-1]
 l2 = tf.keras.regularizers.l2(0.0001)
 lrelu = tf.keras.layers.LeakyReLU(alpha=0.05)
 
-model = tf.keras.Sequential()
-model.add(ZeroPadding2D(padding=(4,4)))
-model.add(Conv2D(8, input_shape=in_shape, strides=1, kernel_size=(5,5), activation=lrelu))
-model.add(ZeroPadding2D(padding=(1, 1)))
-model.add(Conv2D(16, strides=1, kernel_size=(2,2),
-                                 activation=lrelu))
-model.add(MaxPooling2D(pool_size=(2,2)))
-model.add(ZeroPadding2D(padding=(2, 2)))
-model.add(Conv2D(32, strides=1, kernel_size=(4,4), activation=lrelu))
-model.add(MaxPooling2D(pool_size=(2,2)))
-model.add(Conv2D(64,strides=1, kernel_size=(2,2), activation=lrelu))
-model.add(MaxPooling2D(pool_size=(4,4)))
-model.add(ZeroPadding2D(padding=(1,1)))
-model.add(Conv2D(32,strides=1, kernel_size=(2,2), activation=lrelu))
-model.add(MaxPooling2D(pool_size=(2,2)))
-model.add(Conv2D(out_len, strides=1, kernel_size=(2,2), activation=yolo_activation))
+# model = tf.keras.Sequential()
+# model.add(ZeroPadding2D(padding=(4,4)))
+# model.add(Conv2D(8, input_shape=in_shape, strides=1, kernel_size=(5,5), activation=lrelu))
+# model.add(ZeroPadding2D(padding=(1, 1)))
+# model.add(Conv2D(16, strides=1, kernel_size=(2,2),
+#                                  activation=lrelu))
+# model.add(MaxPooling2D(pool_size=(2,2)))
+# model.add(ZeroPadding2D(padding=(2, 2)))
+# model.add(Conv2D(32, strides=1, kernel_size=(4,4), activation=lrelu))
+# model.add(MaxPooling2D(pool_size=(2,2)))
+# model.add(Conv2D(64,strides=1, kernel_size=(2,2), activation=lrelu))
+# model.add(MaxPooling2D(pool_size=(4,4)))
+# model.add(ZeroPadding2D(padding=(1,1)))
+# model.add(Conv2D(32,strides=1, kernel_size=(2,2), activation=lrelu))
+# model.add(MaxPooling2D(pool_size=(2,2)))
+# model.add(Conv2D(out_len, strides=1, kernel_size=(2,2), activation=yolo_activation))
 
-config = model.get_config()
+# config = model.get_config()
 
-#model = tf.keras.models.load_model("testmodel10.h5", custom_objects=custom_objs)
+model = tf.keras.models.load_model("models/miner10_full.h5", custom_objects=custom_objs)
 
 model.compile(loss = yolo_loss, 
    optimizer = keras.optimizers.Adam(learning_rate=0.001), metrics = [yolo_accuracy_object, yolo_accuracy_class])

@@ -5,10 +5,12 @@ import h5py
 import windowTools as wt
 import argparse
 import os.path
+import time
 
 class Classifier:
     def __init__(self, master, hfile, obj_file):
         self.master = master
+        self.title = wt.get_window_title()
         master.title("Image Data Annotations")
 
         self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow", "brown",
@@ -19,6 +21,8 @@ class Classifier:
         self.load_objects(obj_file)
         
         self.hfile = hfile
+        self.run_recording = False
+        self.run_classify_recording = False
 
         frame1, frame2 = self.create_frames(master)
         frame1.pack()
@@ -34,13 +38,14 @@ class Classifier:
 
         self.last_data = (0,0)
 
-        self._display_im()
+        self.next_image()
         self.rect = None
 
         self.start_x = None
         self.start_y = None
 
         self.rectangles = []
+        self.index_recording = 0
 
 
     def load_objects(self,obj_file):
@@ -59,14 +64,23 @@ class Classifier:
         # frame.columnconfigure(1, weight=1)
         
         button_save = tk.Button(
-            frame, text='Save', command=self.save_data).grid(column=0, row=0)
+            frame, text='Save', command=self.save_data).grid(column=1, row=0)
         #self.button_save.pack()
 
-        button_next = tk.Button(frame, text="next", command=self._display_im).grid(column=0, row=1)
+        button_next = tk.Button(frame, text="next", command=self.next_image).grid(column=0, row=0)
         #self.button_next.pack()
 
-        button_delete = tk.Button(frame, text="delete last Image", command=self.delete_data).grid(column=0, row=2, sticky="w")
-        button_delete_box = tk.Button(frame, text="delete last box", command=self.delete_box).grid(column=0, row=2, sticky="e")
+        button_delete = tk.Button(frame, text="delete last Image",
+                                  command=self.delete_data).grid(column=0, row=1, sticky="w")
+        button_delete_box = tk.Button(frame, text="delete last box",
+                                      command=self.delete_box).grid(column=1, row=1, sticky="e")
+        self.button_record = tk.Button(frame, text="start record",
+                                       command=self.start_recording)
+        self.button_record.grid(column=0, row=2, sticky="w")
+        self.button_classify = tk.Button(frame, text="classify recording",
+                                            command=self.classify_recording)
+        self.button_classify.grid(column=1, row=2, sticky="e")
+
         #self.button_delete.pack()
 
         self.canvas.bind("<ButtonPress-1>", self.on_button_press)
@@ -80,22 +94,110 @@ class Classifier:
         for obj in self.objects:
             self.lb.insert("end", obj)
 
-        self.lb.grid(column=1, row=0, rowspan=3)
+        self.lb.grid(column=2, row=0, rowspan=3)
         self.lb.select_set(0)
-        sb.grid(column=2, row=0, rowspan=3, sticky='ns')
+        sb.grid(column=3, row=0, rowspan=3, sticky='ns')
 
         return frame1, frame
 
-    def _display_im(self):
+    def next_image(self):
         self.canvas.delete("all")
         self.data = np.zeros((self.grid_y, self.grid_x, 5+len(self.objects)))
-        self.ar_im = wt.get_array((30, 2, 510, 340))
+        if self.run_classify_recording:
+           self.classify_next()
+        else:
+            self.ar_im = wt.get_array((30, 2, 510, 340), self.title)
+            print(self.ar_im.shape)
+            self.img = ImageTk.PhotoImage(Image.fromarray(self.ar_im))
+            self.im_w = self.ar_im.shape[1]
+            self.im_h = self.ar_im.shape[0]
+            
+            self.canvas.create_image(
+                self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
+
+
+    def start_recording(self):
+        if not self.run_recording:
+            self.run_recording = True
+            self.button_record['text'] = "Stop recording"
+        else:
+            self.button_record.configure(text = "Start recording")
+            print("Stop recording")
+            self.run_recording = False
+
+        if self.run_recording:        
+            print("Start recording")
+            self.run_recording = True
+            with h5py.File("data/recording.h5", 'w') as f:
+                g = f.create_group("Data")
+                X_data = g.create_dataset("X_data", shape=(1, 340, 510, 3), maxshape=(None, 340, 510, 3))
+                self.ar_im = wt.get_array((30, 2, 510, 340),self.title)                
+                X_data[0] = self.ar_im[:, :, :3]
+                self.img = ImageTk.PhotoImage(Image.fromarray(self.ar_im))
+                self.im_w = self.ar_im.shape[1]
+                self.im_h = self.ar_im.shape[0]
+                self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
+                print("Start recording scree to file {:}".format(self.hfile))                
+                self.master.after(250, self.recording)
+        
+        
+    def recording(self):
+        f = h5py.File("data/recording.h5", 'a')
+        g = f['Data']
+        X_data = g['X_data']
+        self.canvas.delete("all")
+        self.ar_im = wt.get_array((30, 2, 510, 340),self.title)
         self.img = ImageTk.PhotoImage(Image.fromarray(self.ar_im))
         self.im_w = self.ar_im.shape[1]
         self.im_h = self.ar_im.shape[0]
+        self.canvas.create_image(self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
+        
+        n = X_data.shape[0]
+        X_data.resize((n+1, *self.ar_im[:, :, :3].shape))
+        X_data[n] = self.ar_im[:, :, :3]
+        f.close()
+        if self.run_recording:
+            self.master.after(250, self.recording)
 
-        self.canvas.create_image(
-            self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
+
+    def classify_recording(self):
+        if self.run_classify_recording:
+            self.run_classify_recording = False
+            self.button_classify['text'] = "Classify recording"
+            print("End classifying recording")
+            return 0
+        else:
+            self.run_classify_recording = True
+            self.button_classify['text'] = "End classifying recording"
+            print("Start Classifying recording")
+            self.classify_next()
+        
+
+    def classify_next(self):
+        with h5py.File("data/recording.h5", 'r') as f:        
+            g = f['Data']
+            X_data = g['X_data']
+            print("index_recording = ", self.index_recording)
+            print("X_data.shape", X_data.shape)
+            if self.index_recording >= X_data.shape[0]:
+                f.close()
+                print("End of recording reached!")
+                self.button_classify['text'] = "Classify recording"
+                self.run_classify_recording = False
+                return 0
+            self.canvas.delete("all")
+            self.data = np.zeros((self.grid_y, self.grid_x, 5+len(self.objects)))            
+            self.ar_im = X_data[self.index_recording]
+            self.img = ImageTk.PhotoImage(Image.fromarray(self.ar_im.astype(np.uint8)))
+            self.im_w = self.ar_im.shape[1]
+            self.im_h = self.ar_im.shape[0]
+            self.canvas.create_image(
+                 self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
+
+            f.close()
+            self.index_recording += 1
+            
+            # then delete first entry:
 
     def on_button_press(self, event):
         # save mouse drag start position
@@ -210,5 +312,4 @@ root = tk.Tk()
 window = Classifier(root, args.file, "objects.txt")
 root.bind('<Escape>', close)
 root.protocol("WM_DELETE_WINDOW", close)
-#root.after(500, window.run)
 root.mainloop()
