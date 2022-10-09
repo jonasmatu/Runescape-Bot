@@ -8,6 +8,8 @@ import h5py
 
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, ZeroPadding2D
 
+from keras.utils.generic_utils import get_custom_objects
+
 
 def load_data(hfile):
     """The data has the following format:
@@ -48,13 +50,18 @@ def yolo_loss(y, y_pred):
     cost_class = K.sum((Y[...,5:]- A[...,5:])*(Y[...,5:]- A[...,5:]))
     
 
-    cost = cost_conf + cost_coord  + cost_class 
+    cost = cost_coord  + cost_class +  cost_conf
     return cost
 
 @tf.function()
+def yolo_activation(X):
+    Z1 = K.maximum(0.0, X[..., 0:5])
+    Z2 = K.exp(X[..., 5:])/K.sum(K.exp(X[..., 5:]), axis=-1, keepdims=True)
+    return K.concatenate((Z1, Z2), axis=-1)
+
+@tf.function()
 def yolo_accuracy_class(y, ypred):
-    
-    acc = K.mean(K.equal(y[..., 5:], K.round(ypred[..., 5:])).where(y[...,0] == 1.0))
+    acc = K.mean(K.equal(y[..., 5:], K.round(ypred[..., 5:]))[y[...,0] == 1.0])
     #print("Accuracy: {:.2f}%".format(float(acc*100)))
     return acc
 
@@ -63,6 +70,11 @@ def yolo_accuracy_class(y, ypred):
 def yolo_accuracy_object(y, ypred):
     acc = K.mean(K.equal(y[..., 0], K.round(ypred[..., 0])))
     return acc
+
+custom_objs = {'yolo_activation': yolo_activation, "yolo_accuracy_object" : yolo_accuracy_object, "yolo_loss": yolo_loss, "yolo_accuracy_class": yolo_accuracy_class}
+
+get_custom_objects().update(custom_objs)
+
     
 X_data, Y_data = load_data("10objectdata.h5")
 # X_data, Y_data = load_data("5objectdata.h5")
@@ -90,9 +102,11 @@ model.add(MaxPooling2D(pool_size=(4,4)))
 model.add(ZeroPadding2D(padding=(1,1)))
 model.add(Conv2D(32,strides=1, kernel_size=(2,2), activation=lrelu))
 model.add(MaxPooling2D(pool_size=(2,2)))
-model.add(Conv2D(out_len, strides=1, kernel_size=(2,2), activation="relu"))
+model.add(Conv2D(out_len, strides=1, kernel_size=(2,2), activation=yolo_activation))
 
-# model = tf.keras.models.load_model("testmodel10.h5", compile=False)
+config = model.get_config()
+
+#model = tf.keras.models.load_model("testmodel10.h5", custom_objects=custom_objs)
 
 model.compile(loss = yolo_loss, 
    optimizer = keras.optimizers.Adam(learning_rate=0.001), metrics = [yolo_accuracy_object, yolo_accuracy_class])

@@ -8,16 +8,16 @@ from PIL import Image
 sct = mss()
 
 
-def screen_grab():
+def screen_grab(title):
     """Grab the whole screen and save to png"""
-    box = get_windowinfo()
+    box = get_windowinfo(title)
     im = ImageGrab.grab((box['xpos'], box['ypos'], box['xpos'] + box['width'],
                          box['ypos'] + box['height'])).convert('RGBA')
     im.save(os.getcwd() + '/full_snap_' + str(int(time.time())) + '.png')
 
 
-def get_full_screen():
-    winInf = get_wininfo()
+def get_full_screen(title):
+    winInf = get_wininfo(title)
     monitor = {"left": winInf[0], "top": winInf[1],
                "width": winInf[2], "height": winInf[3]}
     sct_im = sct.grab(monitor)
@@ -37,27 +37,43 @@ def crop_to_array(im, box):
     return ar_im
 
 
-def get_array(box):
+def get_array(box, title):
     """box = (x, y, w, h)"""
-    winInf = get_wininfo()
+    winInf = get_wininfo(title)
     monitor = {"left": winInf[0] + box[0], "top": winInf[1] + box[1],
                "width": box[2], "height": box[3]}
     ar_im = np.flip(np.array(sct.grab(monitor), dtype=np.uint8)[:, :, :3], 2)
     return ar_im
 
 
-def get_wininfo():
+def get_window_title():
+    RL = "RuneLite"
+    f = os.popen(r"wmctrl -l | awk '{print $0}'")
+    lines = f.readlines()
+    for line in lines:
+        windowtitle = line.replace("\n","").split(" ")[4:]
+        title = ""
+        for word in windowtitle:
+            title += word + " "
+        if "RuneLite" in title:
+            RL = title[:-1]
+
+    return RL
+
+def get_wininfo(title):
     """Get position and attributes of the runescape window.
 
     Returns:
         tuple: (x, y, width, height)
     """
-    f = os.popen(r'xwininfo -id 0x7c0003f')
+    # get window id:
+    f = os.popen(r'xwininfo -name ' + "'" + title + "'")
     data = f.readlines()
     x = int(data[3].split(':')[1].replace(' ', '')[:-1])
     y = int(data[4].split(':')[1].replace(' ', '')[:-1])
     w = int(data[7].split(':')[1].replace(' ', '')[:-1])
-    h = int(data[8].split(':')[1].replace(' ', '')[:-1])        
+    h = int(data[8].split(':')[1].replace(' ', '')[:-1])
+    f.close()
     return (x, y, w, h)
 
 

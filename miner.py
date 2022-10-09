@@ -7,20 +7,75 @@ import time
 import h5py
 
 import tensorflow as tf
+import keras
+import keras.backend as K
+from keras.utils.generic_utils import get_custom_objects
 
 # import network as nn
 # from conv_layer import ConvLayer
 # from pool_layer import PoolLayer
 
 
+@tf.function()
+def yolo_loss(y, y_pred):
+    """Cost function for the YOLO algorithm."""
+    A = y_pred
+    Y = y
+    lamb_coord = 1
+    lamb_noobj = .2
+    # Coordinate loss
+    mse = keras.losses.MeanSquaredError()
+    
+    cost_coord = (A[...,1] - Y[...,1])*(A[...,1] - Y[...,1])
+    cost_coord += (A[...,2] - Y[...,2])*(A[...,2] - Y[...,2])
+    cost_coord += (K.sqrt(A[..., 3]) - K.sqrt(Y[..., 3])) \
+        * (tf.sqrt(A[..., 3]) - tf.sqrt(Y[..., 3]))
+    cost_coord += (K.sqrt(A[..., 4]) - K.sqrt(Y[..., 4])) \
+        * (K.sqrt(A[..., 4]) - K.sqrt(Y[..., 4]))
+
+    cost_coord =  K.sum(Y[..., 0] * cost_coord)
+    
+    cost_conf= K.sum(Y[..., 0]*(A[..., 0]-Y[..., 0])*(A[..., 0]-Y[..., 0]) +
+                     lamb_noobj*(1-Y[..., 0])*(A[..., 0]-Y[..., 0])*(A[..., 0]-Y[..., 0]))
+
+    cost_class = K.sum((Y[...,5:]- A[...,5:])*(Y[...,5:]- A[...,5:]))
+    
+
+    cost = cost_coord  + cost_class +  cost_conf
+    return cost
+
+@tf.function()
+def yolo_activation(X):
+    Z1 = K.maximum(0.0, X[..., 0:5])
+    Z2 = K.exp(X[..., 5:])/K.sum(K.exp(X[..., 5:]), axis=-1, keepdims=True)
+    return K.concatenate((Z1, Z2), axis=-1)
+
+@tf.function()
+def yolo_accuracy_class(y, ypred):
+    acc = K.mean(K.equal(y[..., 5:], K.round(ypred[..., 5:]))[y[...,0] == 1.0])
+    #print("Accuracy: {:.2f}%".format(float(acc*100)))
+    return acc
+
+
+@tf.function()
+def yolo_accuracy_object(y, ypred):
+    acc = K.mean(K.equal(y[..., 0], K.round(ypred[..., 0])))
+    return acc
+
+custom_objs = {'yolo_activation': yolo_activation, "yolo_accuracy_object" : yolo_accuracy_object, "yolo_loss": yolo_loss, "yolo_accuracy_class": yolo_accuracy_class}
+
+get_custom_objects().update(custom_objs)
+
+
 
 class Miner:
     def __init__(self, master):
+        self.title = wt.get_window_title()
         self.master = master
         master.title("RuneScape Bot")
         self.gamefield = (29, 0, 510, 340)  # (x_min, y_min, x_max, y_max)
         self.mapfield = (595, 9, 740-595, 160-9)
-        self.win_info = wt.get_wininfo()
+        self.win_info = wt.get_wininfo(self.title)
         self.raw_im = Image.open("data/train1.png")
 
         self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow", "brown",
@@ -82,7 +137,7 @@ class Miner:
 
         # self.net = nn.Network((l1, l2, l3, l4, l5, l6, l7, l8, l9), lamb=lamb)
         # self.net.load_network("model_9L")
-        self.net = tf.keras.models.load_model("testmodel10.h5", compile=False)
+        self.net = tf.keras.models.load_model("miner10_full.h5", compile=False, custom_objects=custom_objs)
         
 
 
@@ -99,7 +154,7 @@ class Miner:
         """Update"""
         # print("FPS:", 1/(time.time()-self.time))
         # self.time = time.time()
-        self.raw_im = wt.get_full_screen()
+        self.raw_im = wt.get_full_screen(self.title)
         self.ar_gamefield = wt.crop_to_array(self.raw_im, self.gamefield)
         # self.street, self.fence = self.locator.get_minimap(
         #     wt.crop_to_array(self.raw_im, self.mapfield))
@@ -116,36 +171,12 @@ class Miner:
         self.canvas.create_image(
             self.x_offset, self.y_offset, anchor=tk.NW, image=self.img)
 
-        # x_stride = 34
-        # y_stride = 34
-
-        # for i in range(0, ores.shape[1]):
-        #     for j in range(0, ores.shape[2]):
-        #         if ores[0, i, j][0] > 0.5:
-        #             bx, by, w, h = ores[0, i, j][1:]
-        #             x1 = (j + bx - w/2) * x_stride + 29
-        #             y1 = (i + by - h/2) * y_stride
-        #             x2 = (j + bx + w/2) * x_stride + 29
-        #             y2 = (i + by + h/2) * y_stride
-        #             self.canvas.create_rectangle(x1, y1, x2, y2,
-        #                                          fill="", outline="red")
         objects = self.non_max_suppression(obj, 0.25)
         for i in range(len(objects)):
             self.canvas.create_rectangle(objects[i, 1], objects[i, 2], objects[i, 3], objects[i, 4],
                                          fill="", outline=self.colors[int(objects[i,5])])
 
         
-        
-        # self.player = self.canvas.create_oval(
-        #     self.player_pos[0]-5 +
-        #     self.x_offset, self.player_pos[1]-5+self.y_offset,
-        #     self.player_pos[0]+5+self.x_offset, self.player_pos[1]+5+self.y_offset, fill='blue')
-        # for (x, y) in self.street:
-        #     self.canvas.create_rectangle(
-        #         x+595 + 20, y+9 + 20, x+1+595+20, y+1+9+20, outline='green')
-        # for (x, y) in self.fence:
-        #     self.canvas.create_rectangle(
-        #         x+595 + 20, y+9 + 20, x+1+595+20, y+1+9+20, outline='pink')
         self.canvas.update()
 
         # if self.init_mining:
@@ -185,7 +216,6 @@ class Miner:
                     y1.append((i + by - h/2) * y_stride)
                     x2.append((j + bx + w/2) * x_stride + 29)
                     y2.append((i + by + h/2) * y_stride)
-                    print(A[0, i, j, 5:])
                     obj_class.append(np.argmax(A[0, i, j, 5:]))
 
         score = np.array(score)
