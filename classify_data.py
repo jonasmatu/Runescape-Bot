@@ -46,7 +46,8 @@ class Classifier:
     def load_objects(self,obj_file):
         with open(obj_file, "r") as f:
             for line in f.readlines():
-                self.objects.append(line)
+                print(line.replace("\n", ""))
+                self.objects.append(line.replace("\n", ""))
 
     def create_frames(self, master):
         frame1 = tk.Frame(master)

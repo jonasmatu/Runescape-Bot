@@ -52,20 +52,12 @@ def get_wininfo():
     Returns:
         tuple: (x, y, width, height)
     """
-    try: 
-        f = os.popen(r'xwininfo -name "RuneLite"')
-        data = f.readlines()
-        x = int(data[3].split(':')[1].replace(' ', '')[:-1])
-        y = int(data[4].split(':')[1].replace(' ', '')[:-1])
-        w = int(data[7].split(':')[1].replace(' ', '')[:-1])
-        h = int(data[8].split(':')[1].replace(' ', '')[:-1])
-    except:
-        f = os.popen(r'xwininfo -name "RuneLite - Lustmolch312"')
-        data = f.readlines()
-        x = int(data[3].split(':')[1].replace(' ', '')[:-1])
-        y = int(data[4].split(':')[1].replace(' ', '')[:-1])
-        w = int(data[7].split(':')[1].replace(' ', '')[:-1])
-        h = int(data[8].split(':')[1].replace(' ', '')[:-1])
+    f = os.popen(r'xwininfo -id 0x7c0003f')
+    data = f.readlines()
+    x = int(data[3].split(':')[1].replace(' ', '')[:-1])
+    y = int(data[4].split(':')[1].replace(' ', '')[:-1])
+    w = int(data[7].split(':')[1].replace(' ', '')[:-1])
+    h = int(data[8].split(':')[1].replace(' ', '')[:-1])        
     return (x, y, w, h)
 
 

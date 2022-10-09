@@ -27,55 +27,44 @@ def load_data(hfile):
 def yolo_loss(y, y_pred):
     """Cost function for the YOLO algorithm."""
     A = y_pred
-    #tf.print(A.shape)
-    #tf.print(A[np.where(A < 0)])
     Y = y
     lamb_coord = 1
     lamb_noobj = .2
     # Coordinate loss
-    mse = tf.keras.losses.MeanSquaredError()
+    mse = keras.losses.MeanSquaredError()
     
     cost_coord = (A[...,1] - Y[...,1])*(A[...,1] - Y[...,1])
     cost_coord += (A[...,2] - Y[...,2])*(A[...,2] - Y[...,2])
-    cost_coord += (tf.sqrt(A[..., 3]) - tf.sqrt(Y[..., 3])) \
+    cost_coord += (K.sqrt(A[..., 3]) - K.sqrt(Y[..., 3])) \
         * (tf.sqrt(A[..., 3]) - tf.sqrt(Y[..., 3]))
-    cost_coord += (tf.sqrt(A[..., 4]) - tf.sqrt(Y[..., 4])) \
-        * (tf.sqrt(A[..., 4]) - tf.sqrt(Y[..., 4]))
+    cost_coord += (K.sqrt(A[..., 4]) - K.sqrt(Y[..., 4])) \
+        * (K.sqrt(A[..., 4]) - K.sqrt(Y[..., 4]))
 
-    cost_coord =  tf.math.reduce_sum(Y[..., 0] * cost_coord)
+    cost_coord =  K.sum(Y[..., 0] * cost_coord)
     
-    # cost_coord = lamb_coord * mse(Y[...,0]*A[..., 1], Y[..., 0]*Y[..., 1])
-    # cost_coord += lamb_coord * mse(Y[...,0]*A[..., 2], Y[..., 0]*Y[..., 2])
-    # cost_coord += lamb_coord * mse(Y[...,0]*tf.sqrt(A[:,:,:, 3]),
-    #                                Y[..., 0]*tf.sqrt(Y[:,:,:, 3]))
-    # cost_coord += lamb_coord * mse(Y[...,0]*tf.sqrt(A[:,:,:, 4]),
-    #                                Y[..., 0]*tf.sqrt(Y[:,:,:, 4]))
+    cost_conf= K.sum(Y[..., 0]*(A[..., 0]-Y[..., 0])*(A[..., 0]-Y[..., 0]) +
+                     lamb_noobj*(1-Y[..., 0])*(A[..., 0]-Y[..., 0])*(A[..., 0]-Y[..., 0]))
+
+    cost_class = K.sum((Y[...,5:]- A[...,5:])*(Y[...,5:]- A[...,5:]))
     
-    # tf.print("\nCost coordinates:", cost_coord)
-    # tf.print("Coords shape:", cost_coord.shape)
-    # confidence
-    # cost_conf = mse(Y[...,0]*A[...,0], Y[...,0]*Y[...,0])
-    # cost_conf += lamb_noobj*mse(tf.square((1-A[:,:,:, 0]))*A[...,0],
-    #                             tf.square(1-A[:,:,:, 0])* Y[...,0])
 
-    cost_conf= tf.math.reduce_sum(Y[..., 0]*tf.square(A[..., 0]-Y[..., 0]) +
-                lamb_noobj*tf.abs(1-A[..., 0])*tf.square(A[..., 0]-Y[..., 0]))
-    # tf.print("Shape conf:", cost_conf.shape)
-    # tf.print("Cost conf:", cost_conf)
-
-    # class loss:
-    # cost_class = K.sum(mse(Y[:,:,:,5:], A[:,:,:,5:]), axis=-1)
-    cost_class = mse(Y[:,:,:,5:], A[:,:,:,5:])
-    
-    # tf.print("Shape class:", cost_class.shape)
-    # tf.print(cost_class)
-    # tf.print("Cost class:", K.sum(cost_class))
-
-    cost = cost_conf + cost_class + cost_coord
+    cost = cost_conf + cost_coord  + cost_class 
     return cost
 
+@tf.function()
+def yolo_accuracy_class(y, ypred):
+    
+    acc = K.mean(K.equal(y[..., 5:], K.round(ypred[..., 5:])).where(y[...,0] == 1.0))
+    #print("Accuracy: {:.2f}%".format(float(acc*100)))
+    return acc
 
-X_data, Y_data = load_data("testdata.h5")
+
+@tf.function()
+def yolo_accuracy_object(y, ypred):
+    acc = K.mean(K.equal(y[..., 0], K.round(ypred[..., 0])))
+    return acc
+    
+X_data, Y_data = load_data("10objectdata.h5")
 # X_data, Y_data = load_data("5objectdata.h5")
 # X_data = X_data[0].reshape(1, *X_data.shape[1:])
 # Y_data = Y_data[0].reshape(1, *Y_data.shape[1:])
@@ -87,9 +76,10 @@ l2 = tf.keras.regularizers.l2(0.0001)
 lrelu = tf.keras.layers.LeakyReLU(alpha=0.05)
 
 model = tf.keras.Sequential()
-
+model.add(ZeroPadding2D(padding=(4,4)))
+model.add(Conv2D(8, input_shape=in_shape, strides=1, kernel_size=(5,5), activation=lrelu))
 model.add(ZeroPadding2D(padding=(1, 1)))
-model.add(Conv2D(16, input_shape=in_shape, strides=1, kernel_size=(2,2),
+model.add(Conv2D(16, strides=1, kernel_size=(2,2),
                                  activation=lrelu))
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(ZeroPadding2D(padding=(2, 2)))
@@ -102,10 +92,10 @@ model.add(Conv2D(32,strides=1, kernel_size=(2,2), activation=lrelu))
 model.add(MaxPooling2D(pool_size=(2,2)))
 model.add(Conv2D(out_len, strides=1, kernel_size=(2,2), activation="relu"))
 
-# model = tf.keras.models.load_model("testmodel.h5", compile=False)
+# model = tf.keras.models.load_model("testmodel10.h5", compile=False)
 
 model.compile(loss = yolo_loss, 
-   optimizer = keras.optimizers.Adam(learning_rate=0.001), metrics = ['accuracy'])
+   optimizer = keras.optimizers.Adam(learning_rate=0.001), metrics = [yolo_accuracy_object, yolo_accuracy_class])
 
 
 mb_size = 4

@@ -22,6 +22,11 @@ class Miner:
         self.mapfield = (595, 9, 740-595, 160-9)
         self.win_info = wt.get_wininfo()
         self.raw_im = Image.open("data/train1.png")
+
+        self.colors= ["red", "blue", "green", "grey", "orange", "white", "yellow", "brown",
+                      "violet", "dark violet", "forrest green", "mint cream", "misty rose",
+                      "cyan", "lavender blush", "salmon", "coral", "tomato", "ivory", "azure"]
+        
         self.ar_im = np.array([])
         self.time = 0
 
@@ -124,11 +129,10 @@ class Miner:
         #             y2 = (i + by + h/2) * y_stride
         #             self.canvas.create_rectangle(x1, y1, x2, y2,
         #                                          fill="", outline="red")
-        ores = self.non_max_suppression(obj, 0.25)
-        print(ores)
-        for i in range(len(ores)):
-            self.canvas.create_rectangle(ores[i, 1], ores[i, 2], ores[i, 3], ores[i, 4],
-                                         fill="", outline="red")
+        objects = self.non_max_suppression(obj, 0.25)
+        for i in range(len(objects)):
+            self.canvas.create_rectangle(objects[i, 1], objects[i, 2], objects[i, 3], objects[i, 4],
+                                         fill="", outline=self.colors[int(objects[i,5])])
 
         
         
@@ -171,6 +175,7 @@ class Miner:
         x2 = []
         y1 = []
         y2 = []
+        obj_class = []
         for i in range(0, A.shape[1]):
             for j in range(0, A.shape[2]):
                 if A[0, i, j][0] > threshold:
@@ -180,12 +185,15 @@ class Miner:
                     y1.append((i + by - h/2) * y_stride)
                     x2.append((j + bx + w/2) * x_stride + 29)
                     y2.append((i + by + h/2) * y_stride)
+                    print(A[0, i, j, 5:])
+                    obj_class.append(np.argmax(A[0, i, j, 5:]))
 
         score = np.array(score)
         x1 = np.array(x1)
         x2 = np.array(x2)
         y1 = np.array(y1)
         y2 = np.array(y2)
+        obj_class = np.array(obj_class)
 
         score_indexes = score.argsort().tolist()
         boxes_keep_index = []
@@ -208,9 +216,9 @@ class Miner:
             score_indexes = [v for (i, v) in enumerate(score_indexes)
                               if i not in filtered_indexes]
 
-        nms_res = np.zeros((len(boxes_keep_index), 5))
+        nms_res = np.zeros((len(boxes_keep_index), 6))
         for i, j in enumerate(boxes_keep_index):
-            nms_res[i, :] = np.array([score[j], x1[j], y1[j], x2[j], y2[j]])
+            nms_res[i, :] = np.array([score[j], x1[j], y1[j], x2[j], y2[j], obj_class[j]])
         return nms_res
 
 
